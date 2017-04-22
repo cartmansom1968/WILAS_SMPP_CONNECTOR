@@ -1,0 +1,436 @@
+package com.techstudio.app.controller;
+import com.techstudio.app.entities.*;
+import com.techstudio.app.*;
+
+import com.techstudio.smpp.pdu.*;
+import com.techstudio.smpp.*;
+import com.techstudio.converter.*;
+import java.util.*;
+import com.techstudio.smpp.util.*;
+import org.apache.log4j.*;
+
+public class MTHandler implements SMPP_DefaultSetting, DefaultSetting{	
+	Logger logger = ConnLogger.getLogger();
+
+	ClientConnection conn;
+	boolean stop 								= false;
+	String validityperiod 			= "";
+
+	byte summitsm_destaddrton		=0x0;
+	byte summitsm_destaddrnpi		=0x0;
+	byte summitsm_sourceaddrton_alphanumeric	=0x0;
+	byte summitsm_sourceaddrnpi_alphanumeric	=0x0;
+	byte summitsm_sourceaddrton_numeric	=0x0;
+	byte summitsm_sourceaddrnpi_numeric	=0x0;	
+	byte summitsm_sourceaddrton = summitsm_sourceaddrton_numeric;
+	byte summitsm_sourceaddrnpi = summitsm_sourceaddrnpi_numeric;
+	byte summitsm_pid						=0x00;
+	DBHandler dbConn;
+	String name = "";
+	
+	public MTHandler(ClientConnection conn, DBHandler dbConn, String name){
+		this.name 	= name;
+		this.conn 	= conn;
+		this.dbConn = dbConn;
+		summitsm_destaddrton = Byte.valueOf(ConnConfig.getProperty("summitsm_destaddrton")).byteValue();
+		summitsm_destaddrnpi = Byte.valueOf(ConnConfig.getProperty("summitsm_destaddrnpi")).byteValue();
+
+		summitsm_sourceaddrton_alphanumeric = Byte.valueOf(ConnConfig.getProperty("summitsm_sourceaddrton_alphanumeric")).byteValue();
+		summitsm_sourceaddrnpi_alphanumeric = Byte.valueOf(ConnConfig.getProperty("summitsm_sourceaddrnpi_alphanumeric")).byteValue();
+		summitsm_sourceaddrton_numeric = Byte.valueOf(ConnConfig.getProperty("summitsm_sourceaddrton_numeric")).byteValue();
+		summitsm_sourceaddrnpi_numeric = Byte.valueOf(ConnConfig.getProperty("summitsm_sourceaddrnpi_numeric")).byteValue();
+		logger.info("summitsm_sourceaddrton_numeric:"+summitsm_sourceaddrton_numeric);
+		logger.info("summitsm_sourceaddrnpi_numeric:"+summitsm_sourceaddrnpi_numeric);
+		logger.info("summitsm_sourceaddrton_alphanumeric:"+summitsm_sourceaddrton_alphanumeric);
+		logger.info("summitsm_sourceaddrnpi_alphanumeric:"+summitsm_sourceaddrnpi_alphanumeric);		
+	}
+
+	public MTObj bindTransceiver(){
+		String systemid = ConnConfig.getProperty("bindtransceiver_systemid");
+		String password = ConnConfig.getProperty("bindtransceiver_password");
+		String systemtype = ConnConfig.getProperty("bindtransceiver_systemtype");
+		double intversion = Double.valueOf(ConnConfig.getProperty("bindtransceiver_interfaceversion")).doubleValue();
+		byte interfaceversion;
+		if (intversion==3.4)
+			interfaceversion = SMPP_V34;
+		else
+			interfaceversion = SMPP_V33;
+
+		byte addrton = Byte.valueOf(ConnConfig.getProperty("bindtransceiver_addrton")).byteValue();
+		byte addrnpi = Byte.valueOf(ConnConfig.getProperty("bindtransceiver_addrnpi")).byteValue();
+		
+		String addressrange= ConnConfig.getProperty("bindtransceiver_addressrange");
+		logger.info("systemid         >> "+systemid);
+		logger.info("password         >> "+password);
+		logger.info("systemtype       >> "+systemtype);
+		logger.info("interfaceversion >> "+interfaceversion);
+		logger.info("addrton          >> "+addrton);
+		logger.info("addrnpi          >> "+addrnpi);
+		logger.info("addressrange     >> "+addressrange);
+		BindTransceiver bindtransceiver = new BindTransceiver(systemid, password , systemtype, 
+																interfaceversion, addrton, addrnpi, addressrange);
+		return new MTObj(bindtransceiver.getBytes(conn.getSequenceNo()), "BIND_TRANSCEIVER");
+	}
+	
+	//for login
+	public MTObj bindTransmitter(){
+		String systemid = ConnConfig.getProperty("bindtransmitter_systemid");
+		String password = ConnConfig.getProperty("bindtransmitter_password");
+		String systemtype = ConnConfig.getProperty("bindtransmitter_systemtype");
+		double intversion = Double.valueOf(ConnConfig.getProperty("bindtransmitter_interfaceversion")).doubleValue();
+		byte interfaceversion;
+		if (intversion==3.4)
+			interfaceversion = SMPP_V34;
+		else
+			interfaceversion = SMPP_V33;
+
+		byte addrton = Byte.valueOf(ConnConfig.getProperty("bindtransmitter_addrton")).byteValue();
+		byte addrnpi = Byte.valueOf(ConnConfig.getProperty("bindtransmitter_addrnpi")).byteValue();
+		
+		String addressrange= ConnConfig.getProperty("bindtransmitter_addressrange");
+		logger.info("systemid         >> "+systemid);
+		logger.info("password         >> "+password);
+		logger.info("systemtype       >> "+systemtype);
+		logger.info("interfaceversion >> "+interfaceversion);
+		logger.info("addrton          >> "+addrton);
+		logger.info("addrnpi          >> "+addrnpi);
+		logger.info("addressrange     >> "+addressrange);
+		BindTransmitter bindtransmitter = new BindTransmitter(systemid, password , systemtype, 
+																interfaceversion, addrton, addrnpi, addressrange);
+		return new MTObj(bindtransmitter.getBytes(conn.getSequenceNo()), "BIND_TRANSMITTER");
+	}
+	
+	public MTObj bindReceiver(){
+		String systemid = ConnConfig.getProperty("bindreceiver_systemid");
+		String password = ConnConfig.getProperty("bindreceiver_password");
+		String systemtype = ConnConfig.getProperty("bindreceiver_systemtype");
+		double intversion = Double.valueOf(ConnConfig.getProperty("bindreceiver_interfaceversion")).doubleValue();
+		byte interfaceversion;
+		if (intversion==3.4)
+			interfaceversion = SMPP_V34;
+		else 
+			interfaceversion = SMPP_V33;
+
+		byte addrton = Byte.valueOf(ConnConfig.getProperty("bindreceiver_addrton")).byteValue();
+		byte addrnpi = Byte.valueOf(ConnConfig.getProperty("bindreceiver_addrnpi")).byteValue();
+	
+		String addressrange= ConnConfig.getProperty("bindreceiver_addressrange");
+	
+		BindReceiver bindreceiver = new BindReceiver(systemid, password , systemtype, 
+																interfaceversion, addrton, addrnpi, addressrange);
+		return new MTObj(bindreceiver.getBytes(conn.getSequenceNo()), "BIND_RECEIVER");
+	}
+
+	public synchronized MTObj submitSM (SendObj sendobj){
+
+		MTObj mtobj = null;	
+		try{
+			if ( sendobj.msgid==0 ){
+				if ( sendobj.msg.equals("stopserver909") ){
+					logger.info("stopserver909");
+					stop = true;
+					mtobj = unbind();
+				}
+				else
+					mtobj = null;
+			}
+			else{
+				String sourceaddr = sendobj.tpoa;
+				if ( sourceaddr==null || sourceaddr.equals("") ){
+					sourceaddr =  ConnConfig.getProperty("tpoa");
+				}
+				logger.info("sourceaddr sent>>"+sourceaddr);
+				int seqno = conn.getSequenceNo();
+				String message = sendobj.msg;
+				conn.htMsgid.remove(""+seqno);						
+				conn.htMsgid.put(""+seqno, ""+sendobj.msgid);
+
+						
+				if ( isAlphanumericTPOA(sourceaddr) ){
+					summitsm_sourceaddrton = summitsm_sourceaddrton_alphanumeric;
+					summitsm_sourceaddrnpi = summitsm_sourceaddrnpi_alphanumeric;
+				}else{
+					if ( sourceaddr.length()<=6 ){//shortcode
+						summitsm_sourceaddrton = summitsm_sourceaddrton_alphanumeric;
+						summitsm_sourceaddrnpi = summitsm_sourceaddrnpi_alphanumeric;						
+					}else{
+						summitsm_sourceaddrton = summitsm_sourceaddrton_numeric;
+						summitsm_sourceaddrnpi = summitsm_sourceaddrnpi_numeric;
+					}
+				}
+						
+				switch(sendobj.msgtype ){
+					case 1://english sms
+						byte[] byteascii = message.getBytes();
+						byteascii = fromAsciitoGSM(byteascii);
+						short lengthascii = (short)byteascii.length;
+						int intlength = byteascii.length;
+						/*
+						for ( int a=0; a<intlength; a++ ){
+							if ( byteascii[a]==64 )
+								byteascii[a]=0;
+							else if ( byteascii[a]==36 )
+								byteascii[a]=2;
+							else if ( byteascii[a]==95 )
+								byteascii[a]=17;
+						}
+						*/
+						logger.info("recp  >> "+sendobj.recp);
+						logger.info("message  >> "+message);		
+
+						SubmitSM summitsmascii = new SubmitSM(SERVICETYPE_DEFAULT, 
+							summitsm_sourceaddrton, summitsm_sourceaddrnpi, sourceaddr,
+							summitsm_destaddrton, summitsm_destaddrnpi, sendobj.recp, 
+							NULL_BYTE, summitsm_pid, NULL_BYTE, NULL_STRING, 
+							NULL_STRING, RECEIPTREQUIRED/*NULL_BYTE no receipt required*/, FLAG_NOREPLACE , DATAENCODING_ASCII,
+							NULL_BYTE, lengthascii, byteascii);
+							
+						mtobj = new MTObj(summitsmascii.getBytes(seqno), "SUBMIT_SM");
+						break;	
+					case 2://wappush
+						byte[] logobyte = HexConverter.fromHexStrToBytes(message);
+						byte length = (byte)logobyte.length;
+						SubmitSM summitsm = new SubmitSM(SERVICETYPE_DEFAULT, 
+							summitsm_sourceaddrton, summitsm_sourceaddrnpi, sourceaddr,
+							summitsm_destaddrton, summitsm_destaddrnpi, sendobj.recp, 
+							ESMCLASS_BINARY, NULL_BYTE, NULL_BYTE, NULL_STRING, 
+							NULL_STRING, RECEIPTREQUIRED/*NULL_BYTE no receipt required*/, FLAG_NOREPLACE, DATAENCODING_BINARY,
+							NULL_BYTE, length, logobyte);
+						mtobj = new MTObj(summitsm.getBytes(seqno), "SUBMIT_SM");	
+						break;									
+					case 3: 
+						byte[] bytehexstr = HexConverter.fromHexStrToBytes(message);
+						length = (byte)bytehexstr.length;
+						logger.info("recp  >> "+sendobj.recp);
+						logger.info("message  >> "+message);	
+						SubmitSM summitsmchi = new SubmitSM(SERVICETYPE_DEFAULT, 
+							summitsm_sourceaddrton, summitsm_sourceaddrnpi, sourceaddr,
+							summitsm_destaddrton, summitsm_destaddrnpi, sendobj.recp, 
+							NULL_BYTE, summitsm_pid, NULL_BYTE, NULL_STRING, 
+							NULL_STRING, RECEIPTREQUIRED/*NULL_BYTE no receipt required*/, FLAG_NOREPLACE , DATAENCODING_UCS2,
+							NULL_BYTE, length, bytehexstr);
+							
+						mtobj = new MTObj(summitsmchi.getBytes(seqno), "SUBMIT_SM");
+						break;				
+				}
+			}
+		}catch(Exception e){
+			e.printStackTrace();
+			try{
+				Thread.sleep(5000);
+			}catch(Exception e2){}
+		}
+
+		return mtobj;
+	}
+	
+	public synchronized MTObj[] submitSM (Vector vmessage){
+		int size = vmessage.size();
+		if ( size>0 ){
+			MTObj[] mtobj = new MTObj[size];	
+			for ( int i=0; i<size; i++ ){	
+				try{
+					SendObj sendobj = (SendObj)vmessage.elementAt(i);	
+					if ( sendobj.msgid==0 ){
+						if ( sendobj.msg.equals("stopserver909") ){
+							logger.info("stopserver909");
+							stop = true;
+							mtobj[i] = unbind();
+						}
+						else
+							mtobj[i] = null;
+					}
+					else{
+						String sourceaddr = sendobj.tpoa;
+						if ( sourceaddr==null || sourceaddr.equals("") ){
+							sourceaddr =  ConnConfig.getProperty("tpoa");
+						}
+						logger.info("sourceaddr sent>>"+sourceaddr);
+						int seqno = conn.getSequenceNo();
+						String message = sendobj.msg;
+						conn.htMsgid.remove(""+seqno);						
+						conn.htMsgid.put(""+seqno, ""+sendobj.msgid);
+
+								
+						if ( isAlphanumericTPOA(sourceaddr) ){
+							summitsm_sourceaddrton = summitsm_sourceaddrton_alphanumeric;
+							summitsm_sourceaddrnpi = summitsm_sourceaddrnpi_alphanumeric;
+						}else{
+							if ( sourceaddr.length()<=6 ){//shortcode
+								summitsm_sourceaddrton = summitsm_sourceaddrton_alphanumeric;
+								summitsm_sourceaddrnpi = summitsm_sourceaddrnpi_alphanumeric;						
+							}else{
+								summitsm_sourceaddrton = summitsm_sourceaddrton_numeric;
+								summitsm_sourceaddrnpi = summitsm_sourceaddrnpi_numeric;
+							}
+						}
+								
+						switch(sendobj.msgtype ){
+							case 1://english sms
+								byte[] byteascii = message.getBytes();
+								byteascii = fromAsciitoGSM(byteascii);
+								short lengthascii = (short)byteascii.length;
+								int intlength = byteascii.length;
+								/*
+								for ( int a=0; a<intlength; a++ ){
+									if ( byteascii[a]==64 )
+										byteascii[a]=0;
+									else if ( byteascii[a]==36 )
+										byteascii[a]=2;
+									else if ( byteascii[a]==95 )
+										byteascii[a]=17;
+								}
+								*/
+								logger.info("recp  >> "+sendobj.recp);
+								logger.info("message  >> "+message);		
+
+								SubmitSM summitsmascii = new SubmitSM(SERVICETYPE_DEFAULT, 
+									summitsm_sourceaddrton, summitsm_sourceaddrnpi, sourceaddr,
+									summitsm_destaddrton, summitsm_destaddrnpi, sendobj.recp, 
+									NULL_BYTE, summitsm_pid, NULL_BYTE, NULL_STRING, 
+									NULL_STRING, RECEIPTREQUIRED/*NULL_BYTE no receipt required*/, FLAG_NOREPLACE , DATAENCODING_ASCII,
+									NULL_BYTE, lengthascii, byteascii);
+									
+								mtobj[i] = new MTObj(summitsmascii.getBytes(seqno), "SUBMIT_SM");
+								break;	
+							case 2://wappush
+								byte[] logobyte = HexConverter.fromHexStrToBytes(message);
+								byte length = (byte)logobyte.length;
+								SubmitSM summitsm = new SubmitSM(SERVICETYPE_DEFAULT, 
+									summitsm_sourceaddrton, summitsm_sourceaddrnpi, sourceaddr,
+									summitsm_destaddrton, summitsm_destaddrnpi, sendobj.recp, 
+									ESMCLASS_BINARY, NULL_BYTE, NULL_BYTE, NULL_STRING, 
+									NULL_STRING, RECEIPTREQUIRED/*NULL_BYTE no receipt required*/, FLAG_NOREPLACE, DATAENCODING_BINARY,
+									NULL_BYTE, length, logobyte);
+								mtobj[i] = new MTObj(summitsm.getBytes(seqno), "SUBMIT_SM");	
+								break;									
+							case 3: 
+								byte[] bytehexstr = HexConverter.fromHexStrToBytes(message);
+								length = (byte)bytehexstr.length;
+								logger.info("recp  >> "+sendobj.recp);
+								logger.info("message  >> "+message);	
+								SubmitSM summitsmchi = new SubmitSM(SERVICETYPE_DEFAULT, 
+									summitsm_sourceaddrton, summitsm_sourceaddrnpi, sourceaddr,
+									summitsm_destaddrton, summitsm_destaddrnpi, sendobj.recp, 
+									NULL_BYTE, summitsm_pid, NULL_BYTE, NULL_STRING, 
+									NULL_STRING, RECEIPTREQUIRED/*NULL_BYTE no receipt required*/, FLAG_NOREPLACE , DATAENCODING_UCS2,
+									NULL_BYTE, length, bytehexstr);
+									
+								mtobj[i] = new MTObj(summitsmchi.getBytes(seqno), "SUBMIT_SM");
+								break;				
+						}
+					}
+				}catch(Exception e){
+					e.printStackTrace();
+					try{
+						Thread.sleep(5000);
+					}catch(Exception e2){}
+				}
+			}
+			return mtobj;
+		}
+		return null;
+	}
+
+	private byte[] fromAsciitoGSM(byte[] byteascii){
+		byte[] newbyteascii = null;
+		byte lengthascii = (byte)byteascii.length;
+		for ( int a=0; a<lengthascii; a++ ){
+			switch( byteascii[a]){
+				case 64://@
+					byteascii[a]=0;
+					break;
+				//case 36://$
+				//	byteascii[a]=2;
+				//	break;
+				case 95://_
+					byteascii[a]=17;
+					break;
+				case 123://{
+					logger.info("test:"+123);
+					newbyteascii = new byte[lengthascii+1];
+					for ( byte z=0; z<a; z++ )
+						newbyteascii[z]=byteascii[z];
+					newbyteascii[a]=27;
+					newbyteascii[a+1]=40;
+					for ( int z=a+1; z<lengthascii; z++ )
+						newbyteascii[z+1]=byteascii[z];
+					byteascii=newbyteascii;
+					lengthascii = (byte)byteascii.length;
+					break;
+				case 125://}
+					newbyteascii = new byte[lengthascii+1];
+					for ( byte z=0; z<a; z++ )
+						newbyteascii[z]=byteascii[z];
+					newbyteascii[a]=27;
+					newbyteascii[a+1]=41;
+					byteascii[a]=0;	
+					for ( int z=a+1; z<lengthascii; z++ )
+						newbyteascii[z+1]=byteascii[z];
+					byteascii=newbyteascii;
+					lengthascii = (byte)byteascii.length;
+					break;		
+				case 91://[
+					newbyteascii = new byte[lengthascii+1];
+					for ( byte z=0; z<a; z++ )
+						newbyteascii[z]=byteascii[z];
+					newbyteascii[a]=27;
+					newbyteascii[a+1]=60;
+					byteascii[a]=0;	
+					for ( int z=a+1; z<lengthascii; z++ )
+						newbyteascii[z+1]=byteascii[z];
+					byteascii=newbyteascii;
+					lengthascii = (byte)byteascii.length;
+					break;
+				case 93://]
+					newbyteascii = new byte[lengthascii+1];
+					for ( byte z=0; z<a; z++ )
+						newbyteascii[z]=byteascii[z];
+					newbyteascii[a]=27;
+					newbyteascii[a+1]=62;
+					byteascii[a]=0;	
+					for ( int z=a+1; z<lengthascii; z++ )
+						newbyteascii[z+1]=byteascii[z];
+					byteascii=newbyteascii;
+					lengthascii = (byte)byteascii.length;
+					break;	
+			}
+		}//end for	
+		return byteascii;
+	}
+	
+	public boolean isAlphanumericTPOA(String str){
+
+		for ( int i=0; i<str.length(); i++ ){
+			char ch = str.charAt(i);
+			if ( !(ch>='0' && ch<='9') ){
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	
+	public MTObj enquireLink(){
+		EnquireLink enquirelink = new EnquireLink();
+		return (new MTObj(enquirelink.getBytes(conn.getSequenceNo()),"ENQUIRE_LINK"));
+	}
+	
+	public MTObj querySM(long msgid, String messageid, String tpoa){	
+		tpoa="";
+		QuerySM querysm = new QuerySM(messageid, summitsm_sourceaddrton, summitsm_sourceaddrnpi, tpoa);
+		int seqno=conn.getSequenceNo();
+		dbConn.updateSequenceNo(msgid, ""+seqno);
+		return (new MTObj(querysm.getBytes(seqno),"QUERY_SM"));
+	}	
+	
+	public MTObj unbind(){
+		Unbind unbind = new Unbind ();
+		return (new MTObj(unbind.getBytes(conn.getSequenceNo()), "UNBIND"));
+	}
+	
+	public boolean stopServer(){
+		return stop;
+	}
+}
+
